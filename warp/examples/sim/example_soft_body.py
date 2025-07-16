@@ -106,13 +106,14 @@ class Example:
         self.model.ground = False
         self.model.gravity[1] = 0.0
 
-        self.integrator = wp.sim.SemiImplicitIntegrator()
+        self.integrator = wp.sim.XPBDIntegrator( soft_body_relaxation=1.0)
 
         self.rest = self.model.state()
         self.rest_vol = (cell_size * cell_dim) ** 3
 
         self.state_0 = self.model.state()
         self.state_1 = self.model.state()
+        self.steps = 0
 
         self.volume = wp.zeros(1, dtype=wp.float32)
 
@@ -143,6 +144,7 @@ class Example:
                 (0.0, self.lift_speed * self.sim_time, 0.0),
                 wp.quat_from_axis_angle(wp.vec3(0.0, 1.0, 0.0), self.rot_speed * self.sim_time),
             )
+            # if self.steps < 100:
             wp.launch(
                 kernel=twist_points,
                 dim=len(self.state_0.particle_q),
@@ -159,6 +161,7 @@ class Example:
                 inputs=[self.state_0.particle_q, self.model.tet_indices, self.volume],
             )
         self.sim_time += self.frame_dt
+        self.steps += 1
 
     def render(self):
         if self.renderer is None:
