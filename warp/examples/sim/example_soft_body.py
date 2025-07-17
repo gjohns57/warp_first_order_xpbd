@@ -25,7 +25,10 @@ import math
 import warp as wp
 import warp.sim
 import warp.sim.render
-
+import numpy as np
+import pyvista as pv
+import pyvistaqt as pvqt
+import time
 
 @wp.kernel
 def twist_points(
@@ -106,7 +109,7 @@ class Example:
         self.model.ground = False
         self.model.gravity[1] = 0.0
 
-        self.integrator = wp.sim.XPBDIntegrator( soft_body_relaxation=1.0)
+        self.integrator = wp.sim.FirstOrderXPBDIntegrator( soft_body_relaxation=1.0)
 
         self.rest = self.model.state()
         self.rest_vol = (cell_size * cell_dim) ** 3
@@ -127,6 +130,20 @@ class Example:
             with wp.ScopedCapture() as capture:
                 self.simulate()
             self.graph = capture.graph
+
+        # self.plotter = pvqt.BackgroundPlotter()
+        indices = self.model.tet_indices.numpy()
+        celltypes = [pv.CellType.TETRA for i in range(indices.shape[0])]
+        cells = np.empty((indices.shape[1] + 1) * indices.shape[0], dtype=np.int16)
+        for i in range(indices.shape[0]):
+            cells[(indices.shape[1] + 1) * i] = indices.shape[1]
+            for j in range(indices.shape[1]):
+                cells[(indices.shape[1] + 1) * i + j + 1] = indices[i, j]
+        
+        self.grid = pv.UnstructuredGrid(cells, celltypes, self.state_1.particle_q.numpy())
+        self.plotter = pvqt.BackgroundPlotter()
+        self.plotter.add_mesh(self.grid)
+        self.plotter.show()
 
     def simulate(self):
         for _ in range(self.sim_substeps):
@@ -168,9 +185,15 @@ class Example:
             return
 
         with wp.ScopedTimer("render"):
-            self.renderer.begin_frame(self.sim_time)
-            self.renderer.render(self.state_0)
-            self.renderer.end_frame()
+            self.grid.points = self.state_0.particle_q.numpy()
+            self.plotter.update()
+            # self.renderer.begin_frame(self.sim_time)
+            # self.renderer.render(self.state_0)
+            # self.renderer.end_frame()
+        
+        self.plotter.app.processEvents()
+        time.sleep(self.frame_dt)
+
 
 
 if __name__ == "__main__":
