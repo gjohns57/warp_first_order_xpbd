@@ -109,7 +109,7 @@ class Example:
         self.model.ground = False
         # self.model.gravity[1] = 0.0
 
-        self.integrator = wp.sim.XPBDIntegrator()
+        self.integrator = wp.sim.FirstOrderXPBDIntegrator()
 
         self.rest = self.model.state()
         self.rest_vol = (cell_size * cell_dim) ** 3
