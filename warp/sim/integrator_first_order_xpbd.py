@@ -660,18 +660,18 @@ def solve_tetrahedra2(
     J = wp.determinant(F)
 
     C_vol = J - alpha
-    # dCdx = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))*wp.transpose(Dm)
+    dCdx = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))*wp.transpose(Dm)
 
-    # grad1 = wp.vec3(dCdx[0,0], dCdx[1,0], dCdx[2,0])
-    # grad2 = wp.vec3(dCdx[0,1], dCdx[1,1], dCdx[2,1])
-    # grad3 = wp.vec3(dCdx[0,2], dCdx[1,2], dCdx[2,2])
-    # grad0 = (grad1 + grad2 + grad3)*(0.0 - 1.0)
+    grad1 = wp.vec3(dCdx[0,0], dCdx[1,0], dCdx[2,0])
+    grad2 = wp.vec3(dCdx[0,1], dCdx[1,1], dCdx[2,1])
+    grad3 = wp.vec3(dCdx[0,2], dCdx[1,2], dCdx[2,2])
+    grad0 = (grad1 + grad2 + grad3)*(0.0 - 1.0)
 
-    s = inv_rest_volume / 6.0
-    grad1 = wp.cross(x20, x30) * s
-    grad2 = wp.cross(x30, x10) * s
-    grad3 = wp.cross(x10, x20) * s
-    grad0 = -(grad1 + grad2 + grad3)
+    # s = inv_rest_volume / 6.0
+    # grad1 = wp.cross(x20, x30)  # * s
+    # grad2 = wp.cross(x30, x10) #* s
+    # grad3 = wp.cross(x10, x20) #* s
+    # grad0 = -(grad1 + grad2 + grad3)
 
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
