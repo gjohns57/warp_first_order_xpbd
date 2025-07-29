@@ -624,7 +624,7 @@ def solve_tetrahedra2(
     #     r_s = -r_s
     r_s_inv = 1.0 / r_s
     C = r_s
-    dCdx = F * wp.transpose(Dm) * r_s_inv
+    dCdx = F * wp.transpose(Dm) * 2.0
     alpha = 1.0 + k_mu / k_lambda
 
     # C_Spherical
@@ -678,7 +678,6 @@ def solve_tetrahedra2(
     )
     alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
     dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
-    dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
 
     delta0 += grad0 * dlambda1
     delta1 += grad1 * dlambda1
@@ -686,8 +685,8 @@ def solve_tetrahedra2(
     delta3 += grad3 * dlambda1
 
     # apply forces
-    # wp.atomic_add(lambdas, 2 * tid, dlambda0)
-    # wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)
+    wp.atomic_add(lambdas, 2 * tid, dlambda0)
+    wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)
     wp.atomic_sub(delta, i, delta0 * w0 * relaxation)
     wp.atomic_sub(delta, j, delta1 * w1 * relaxation)
     wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
