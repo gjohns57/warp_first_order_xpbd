@@ -187,9 +187,9 @@ class Example:
         with wp.ScopedTimer("render"):
             self.grid.points = self.state_0.particle_q.numpy()
             self.plotter.update()
-            # self.renderer.begin_frame(self.sim_time)
-            # self.renderer.render(self.state_0)
-            # self.renderer.end_frame()
+            self.renderer.begin_frame(self.sim_time)
+            self.renderer.render(self.state_0)
+            self.renderer.end_frame()
         
         self.plotter.app.processEvents()
         time.sleep(self.frame_dt)
