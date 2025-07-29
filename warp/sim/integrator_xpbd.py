@@ -629,7 +629,7 @@ def solve_tetrahedra(
             compliance = stretching_compliance
         elif term == 1:
             # volume conservation
-            C = wp.determinant(F) - 1.0 + k_mu / k_lambda
+            C = wp.determinant(F) - 1.0 - k_mu / k_lambda
             dC = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))
             compliance = volume_compliance
 

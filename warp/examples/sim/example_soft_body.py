@@ -107,10 +107,9 @@ class Example:
 
         self.model = builder.finalize()
         self.model.ground = False
-        print(f"tet_poses: {self.model.tet_poses.numpy()}")
         # self.model.gravity[1] = 0.0
 
-        self.integrator = wp.sim.XPBDIntegrator( soft_body_relaxation=1.0)
+        self.integrator = wp.sim.FirstOrderXPBDIntegrator( soft_body_relaxation=1.0)
 
         self.rest = self.model.state()
         self.rest_vol = (cell_size * cell_dim) ** 3
