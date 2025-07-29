@@ -593,6 +593,7 @@ def solve_tetrahedra2(
 
     inv_rest_volume = wp.determinant(Dm) * 6.0
     rest_volume = 1.0 / inv_rest_volume
+    wp.printf("rest_volume: %f\n", rest_volume)
 
     # F = Xs*Xm^-1
     F = Ds * Dm
@@ -648,7 +649,7 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    alpha_tilde = 1.0 / (k_mu * dt * dt * rest_volume)
+    alpha_tilde = 1.0 / (k_mu * dt * rest_volume)
     dlambda0 = (C + alpha_tilde * lambdas[2 * tid]) / (denom + alpha_tilde)
 
     delta0 = grad0 * dlambda0
@@ -676,7 +677,7 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    alpha_tilde = 1.0 / (k_lambda * dt * dt * rest_volume)
+    alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
     dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
 
     delta0 += grad0 * dlambda1
