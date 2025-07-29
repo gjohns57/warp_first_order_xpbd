@@ -616,14 +616,14 @@ def solve_tetrahedra2(
     # alpha = 1.0 + k_mu / k_lambda
 
     # C_Neo
-    tr = wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3)
-    if tr == 0.0:
+    frob = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
+    if frob == 0.0:
         return
     # tr = wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3)
     # if (tr < 3.0):
     #     r_s = -r_s
-    C = tr - 3.0
-    dCdx = F * wp.transpose(Dm) * 2.0
+    C = frob
+    dCdx = F * wp.transpose(Dm) / frob
 
     # C_Spherical
     # r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
