@@ -623,7 +623,7 @@ def solve_tetrahedra2(
     # if (tr < 3.0):
     #     r_s = -r_s
     C = frob
-    dCdx = F * wp.transpose(Dm) / frob
+    dCdx = F * wp.transpose(Dm) * (1.0 / frob)
 
     # C_Spherical
     # r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
