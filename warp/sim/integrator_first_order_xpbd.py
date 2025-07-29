@@ -40,7 +40,7 @@ def integrate_particles(
     inv_mass = w[tid]
 
     # simple semi-implicit Euler. v1 = v0 + a dt, x1 = x0 + v1 dt
-    x1 = x0 + gravity * 0.001 * dt * inv_mass
+    x1 = x0 + gravity * 0.1 * dt * inv_mass
 
     x_new[tid] = x1
 
@@ -390,8 +390,8 @@ def solve_tetrahedra(
 
     # act = activation[tid]
 
-    # k_mu = materials[tid, 0]
-    # k_lambda = materials[tid, 1]
+    k_mu = materials[tid, 0]
+    k_lambda = materials[tid, 1]
     # k_damp = materials[tid, 2]
 
     x0 = x[i]
@@ -444,7 +444,7 @@ def solve_tetrahedra(
             compliance = stretching_compliance
         elif term == 1:
             # volume conservation
-            C = wp.determinant(F) - 1.0
+            C = wp.determinant(F) - 1.0 - k_mu / k_lambda
             dC = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))
             compliance = volume_compliance
 
