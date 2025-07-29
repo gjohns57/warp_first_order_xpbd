@@ -541,6 +541,151 @@ def solve_tetrahedra(
     # # wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
     # # wp.atomic_sub(delta, l, delta3 * w3 * relaxation)
 
+@wp.kernel
+def solve_tetrahedra2(
+    x: wp.array(dtype=wp.vec3),
+    v: wp.array(dtype=wp.vec3),
+    inv_mass: wp.array(dtype=float),
+    indices: wp.array(dtype=int, ndim=2),
+    pose: wp.array(dtype=wp.mat33),
+    activation: wp.array(dtype=float),
+    materials: wp.array(dtype=float, ndim=2),
+    dt: float,
+    relaxation: float,
+    delta: wp.array(dtype=wp.vec3),
+):
+    tid = wp.tid()
+
+    i = indices[tid, 0]
+    j = indices[tid, 1]
+    k = indices[tid, 2]
+    l = indices[tid, 3]
+
+    # act = activation[tid]
+
+    k_mu = materials[tid, 0]
+    k_lambda = materials[tid, 1]
+    # k_damp = materials[tid, 2]
+
+    x0 = x[i]
+    x1 = x[j]
+    x2 = x[k]
+    x3 = x[l]
+
+    # v0 = v[i]
+    # v1 = v[j]
+    # v2 = v[k]
+    # v3 = v[l]
+
+    w0 = inv_mass[i]
+    w1 = inv_mass[j]
+    w2 = inv_mass[k]
+    w3 = inv_mass[l]
+
+    x10 = x1 - x0
+    x20 = x2 - x0
+    x30 = x3 - x0
+
+    Ds = wp.matrix_from_cols(x10, x20, x30)
+    Dm = pose[tid]
+
+    inv_rest_volume = wp.determinant(Dm) * 6.0
+    rest_volume = 1.0 / inv_rest_volume
+
+    # F = Xs*Xm^-1
+    F = Ds * Dm
+
+    f1 = wp.vec3(F[0, 0], F[1, 0], F[2, 0])
+    f2 = wp.vec3(F[0, 1], F[1, 1], F[2, 1])
+    f3 = wp.vec3(F[0, 2], F[1, 2], F[2, 2])
+
+    # C_sqrt
+    # tr = wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3)
+    # r_s = wp.sqrt(abs(tr - 3.0))
+    # C = r_s
+
+    # if (r_s == 0.0):
+    #     return
+
+    # if (tr < 3.0):
+    #     r_s = 0.0 - r_s
+
+    # dCdx = F*wp.transpose(Dm)*(1.0/r_s)
+    # alpha = 1.0 + k_mu / k_lambda
+
+    # C_Neo
+    r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
+    if r_s == 0.0:
+        return
+    # tr = wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3)
+    # if (tr < 3.0):
+    #     r_s = -r_s
+    r_s_inv = 1.0 / r_s
+    C = r_s
+    dCdx = F * wp.transpose(Dm) * r_s_inv
+    alpha = 1.0 + k_mu / k_lambda
+
+    # C_Spherical
+    # r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
+    # r_s_inv = 1.0/r_s
+    # C = r_s - wp.sqrt(3.0)
+    # dCdx = F*wp.transpose(Dm)*r_s_inv
+    # alpha = 1.0
+
+    # C_D
+    # r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
+    # C = r_s*r_s - 3.0
+    # dCdx = F*wp.transpose(Dm)*2.0
+    # alpha = 1.0
+
+    grad1 = wp.vec3(dCdx[0, 0], dCdx[1, 0], dCdx[2, 0])
+    grad2 = wp.vec3(dCdx[0, 1], dCdx[1, 1], dCdx[2, 1])
+    grad3 = wp.vec3(dCdx[0, 2], dCdx[1, 2], dCdx[2, 2])
+    grad0 = (grad1 + grad2 + grad3) * (0.0 - 1.0)
+
+    denom = (
+        wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
+    )
+    multiplier = C / (denom + 1.0 / (k_mu * dt * rest_volume))
+
+    delta0 = grad0 * multiplier
+    delta1 = grad1 * multiplier
+    delta2 = grad2 * multiplier
+    delta3 = grad3 * multiplier
+
+    # hydrostatic part
+    J = wp.determinant(F)
+
+    C_vol = J - alpha
+    # dCdx = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))*wp.transpose(Dm)
+
+    # grad1 = wp.vec3(dCdx[0,0], dCdx[1,0], dCdx[2,0])
+    # grad2 = wp.vec3(dCdx[0,1], dCdx[1,1], dCdx[2,1])
+    # grad3 = wp.vec3(dCdx[0,2], dCdx[1,2], dCdx[2,2])
+    # grad0 = (grad1 + grad2 + grad3)*(0.0 - 1.0)
+
+    s = inv_rest_volume / 6.0
+    grad1 = wp.cross(x20, x30) * s
+    grad2 = wp.cross(x30, x10) * s
+    grad3 = wp.cross(x10, x20) * s
+    grad0 = -(grad1 + grad2 + grad3)
+
+    denom = (
+        wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
+    )
+    multiplier = C_vol / (denom + 1.0 / (k_lambda * dt * dt * rest_volume))
+
+    delta0 += grad0 * multiplier
+    delta1 += grad1 * multiplier
+    delta2 += grad2 * multiplier
+    delta3 += grad3 * multiplier
+
+    # apply forces
+    wp.atomic_sub(delta, i, delta0 * w0 * relaxation)
+    wp.atomic_sub(delta, j, delta1 * w1 * relaxation)
+    wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
+    wp.atomic_sub(delta, l, delta3 * w3 * relaxation)
+
 
 @wp.kernel
 def apply_particle_deltas(
@@ -811,7 +956,7 @@ class FirstOrderXPBDIntegrator(Integrator):
                         # tetrahedral FEM
                         if model.tet_count:
                             wp.launch(
-                                kernel=solve_tetrahedra,
+                                kernel=solve_tetrahedra2,
                                 dim=model.tet_count,
                                 inputs=[
                                     particle_q,
