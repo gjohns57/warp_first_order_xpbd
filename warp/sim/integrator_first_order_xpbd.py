@@ -442,13 +442,13 @@ def solve_tetrahedra(
             C = tr - 3.0
             dC = F * 2.0
             compliance = stretching_compliance
-            alpha = 1.0 / k_lambda * inv_rest_volume
+            alpha = 1.0 / (k_lambda * dt) * inv_rest_volume
         elif term == 1:
             # volume conservation
             C = wp.determinant(F) - 1.0 - k_mu / k_lambda
             dC = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))
             compliance = volume_compliance
-            alpha = 1.0 / k_mu * inv_rest_volume
+            alpha = 1.0 / (k_mu * dt) * inv_rest_volume
 
         if C != 0.0:
             dP = dC * inv_QT
