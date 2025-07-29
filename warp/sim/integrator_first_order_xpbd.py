@@ -625,7 +625,6 @@ def solve_tetrahedra2(
     r_s_inv = 1.0 / r_s
     C = r_s
     dCdx = F * wp.transpose(Dm) * 2.0
-    alpha = 1.0 + k_mu / k_lambda
 
     # C_Spherical
     # r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
@@ -648,7 +647,7 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    alpha_tilde = 1.0 / (k_mu * dt * rest_volume)
+    alpha_tilde = 1.0 / (k_mu * dt * dt * rest_volume)
     dlambda0 = (C + alpha_tilde * lambdas[2 * tid]) / (denom + alpha_tilde)
 
     delta0 = grad0 * dlambda0
@@ -658,8 +657,9 @@ def solve_tetrahedra2(
 
     # hydrostatic part
     J = wp.determinant(F)
+    gamma = 1.0 + k_mu / k_lambda
 
-    C_vol = J - alpha
+    C_vol = J - gamma
     dCdx = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))*wp.transpose(Dm)
 
     grad1 = wp.vec3(dCdx[0,0], dCdx[1,0], dCdx[2,0])
@@ -676,7 +676,7 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
+    alpha_tilde = 1.0 / (k_lambda * dt * dt * rest_volume)
     dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
 
     delta0 += grad0 * dlambda1
