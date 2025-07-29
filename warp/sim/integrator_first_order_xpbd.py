@@ -546,6 +546,7 @@ def solve_tetrahedra(
 def solve_tetrahedra2(
     x: wp.array(dtype=wp.vec3),
     v: wp.array(dtype=wp.vec3),
+    lambdas: wp.array(dtype=float),
     inv_mass: wp.array(dtype=float),
     indices: wp.array(dtype=int, ndim=2),
     pose: wp.array(dtype=wp.mat33),
@@ -647,12 +648,13 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    multiplier = C / (denom + 1.0 / (k_mu * dt * rest_volume))
+    alpha_tilde = 1.0 / (k_mu * dt * rest_volume)
+    dlambda0 = (C + alpha_tilde * lambdas[2 * tid]) / (denom + alpha_tilde)
 
-    delta0 = grad0 * multiplier
-    delta1 = grad1 * multiplier
-    delta2 = grad2 * multiplier
-    delta3 = grad3 * multiplier
+    delta0 = grad0 * dlambda0
+    delta1 = grad1 * dlambda0
+    delta2 = grad2 * dlambda0
+    delta3 = grad3 * dlambda0
 
     # hydrostatic part
     J = wp.determinant(F)
@@ -674,14 +676,17 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    multiplier = C_vol / (denom + 1.0 / (k_lambda * dt * dt * rest_volume))
+    alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
+    dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
 
-    delta0 += grad0 * multiplier
-    delta1 += grad1 * multiplier
-    delta2 += grad2 * multiplier
-    delta3 += grad3 * multiplier
+    delta0 += grad0 * dlambda1
+    delta1 += grad1 * dlambda1
+    delta2 += grad2 * dlambda1
+    delta3 += grad3 * dlambda1
 
     # apply forces
+    wp.atomic_add(lambdas, 2 * tid, dlambda0)
+    wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)
     wp.atomic_sub(delta, i, delta0 * w0 * relaxation)
     wp.atomic_sub(delta, j, delta1 * w1 * relaxation)
     wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
@@ -957,7 +962,7 @@ class FirstOrderXPBDIntegrator(Integrator):
                         # tetrahedral FEM
                         if model.tet_count:
                             wp.launch(
-                                kernel=solve_tetrahedra,
+                                kernel=solve_tetrahedra2,
                                 dim=model.tet_count,
                                 inputs=[
                                     particle_q,
