@@ -98,18 +98,19 @@ class Example:
             cell_y=cell_size,
             cell_z=cell_size,
             density=100.0,
-            fix_bottom=True,
-            fix_top=True,
+            fix_left=True,
             k_mu=1000.0,
             k_lambda=5000.0,
             k_damp=0.0,
         )
 
+
         self.model = builder.finalize()
         self.model.ground = False
-        self.model.gravity[1] = 0.0
+        print(f"tet_poses: {self.model.tet_poses.numpy()}")
+        # self.model.gravity[1] = 0.0
 
-        self.integrator = wp.sim.FirstOrderXPBDIntegrator( soft_body_relaxation=1.0)
+        self.integrator = wp.sim.XPBDIntegrator( soft_body_relaxation=1.0)
 
         self.rest = self.model.state()
         self.rest_vol = (cell_size * cell_dim) ** 3
@@ -157,16 +158,16 @@ class Example:
 
     def step(self):
         with wp.ScopedTimer("step"):
-            xform = wp.transform(
-                (0.0, self.lift_speed * self.sim_time, 0.0),
-                wp.quat_from_axis_angle(wp.vec3(0.0, 1.0, 0.0), self.rot_speed * self.sim_time),
-            )
-            # if self.steps < 100:
-            wp.launch(
-                kernel=twist_points,
-                dim=len(self.state_0.particle_q),
-                inputs=[self.rest.particle_q, self.state_0.particle_q, self.model.particle_mass, xform],
-            )
+            # xform = wp.transform(
+            #     (0.0, self.lift_speed * self.sim_time, 0.0),
+            #     wp.quat_from_axis_angle(wp.vec3(0.0, 1.0, 0.0), self.rot_speed * self.sim_time),
+            # )
+            # # if self.steps < 100:
+            # wp.launch(
+            #     kernel=twist_points,
+            #     dim=len(self.state_0.particle_q),
+            #     inputs=[self.rest.particle_q, self.state_0.particle_q, self.model.particle_mass, xform],
+            # )
             if self.use_cuda_graph:
                 wp.capture_launch(self.graph)
             else:

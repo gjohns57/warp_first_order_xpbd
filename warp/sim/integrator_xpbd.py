@@ -3008,7 +3008,7 @@ class XPBDIntegrator(Integrator):
                         # tetrahedral FEM
                         if model.tet_count:
                             wp.launch(
-                                kernel=solve_tetrahedra,
+                                kernel=solve_tetrahedra2,
                                 dim=model.tet_count,
                                 inputs=[
                                     particle_q,
