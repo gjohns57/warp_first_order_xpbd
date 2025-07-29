@@ -593,7 +593,8 @@ def solve_tetrahedra2(
 
     inv_rest_volume = wp.determinant(Dm) * 6.0
     rest_volume = 1.0 / inv_rest_volume
-    wp.printf("rest_volume: %f\n", rest_volume)
+    if tid == 0:
+        wp.printf("rest_volume: %f\n", rest_volume)
 
     # F = Xs*Xm^-1
     F = Ds * Dm
