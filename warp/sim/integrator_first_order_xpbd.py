@@ -556,7 +556,7 @@ def solve_tetrahedra2(
     gravity: wp.vec3,
     delta: wp.array(dtype=wp.vec3),
     lambdas: wp.array(dtype=float),
-    residuals: wp.array(dtype=float, ndim=1, default=0.0),
+    residuals: wp.array(dtype=float),
 ):
     tid = wp.tid()
 
