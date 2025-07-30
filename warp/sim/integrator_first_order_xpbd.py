@@ -1003,7 +1003,7 @@ class FirstOrderXPBDIntegrator(Integrator):
                                     model.tet_poses,
                                     model.tet_activations,
                                     model.tet_materials,
-                                    dt,
+                                    dt / self.iterations,
                                     self.soft_body_relaxation,
                                 ],
                                 outputs=[particle_deltas, tet_lambdas],
