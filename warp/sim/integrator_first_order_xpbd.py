@@ -622,7 +622,7 @@ def solve_tetrahedra2(
     # tr = wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3)
     # if (tr < 3.0):
     #     r_s = -r_s
-    C = frob
+    C = frob - wp.sqrt(3.0)
     dCdx = F * wp.transpose(Dm) * (1.0 / frob)
 
     # C_Spherical
@@ -646,7 +646,7 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    alpha_tilde = 1.0 / (k_mu * dt * dt * rest_volume)
+    alpha_tilde = 1.0 / (k_mu * dt * rest_volume)
     dlambda0 = (C + alpha_tilde * lambdas[2 * tid]) / (denom + alpha_tilde)
 
     delta0 = grad0 * dlambda0
@@ -675,7 +675,7 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    alpha_tilde = 1.0 / (k_lambda * dt * dt * rest_volume)
+    alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
     dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
 
     delta0 += grad0 * dlambda1
