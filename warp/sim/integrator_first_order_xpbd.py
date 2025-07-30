@@ -546,7 +546,6 @@ def solve_tetrahedra(
 def solve_tetrahedra2(
     x: wp.array(dtype=wp.vec3),
     v: wp.array(dtype=wp.vec3),
-    lambdas: wp.array(dtype=float),
     inv_mass: wp.array(dtype=float),
     indices: wp.array(dtype=int, ndim=2),
     pose: wp.array(dtype=wp.mat33),
@@ -554,7 +553,10 @@ def solve_tetrahedra2(
     materials: wp.array(dtype=float, ndim=2),
     dt: float,
     relaxation: float,
+    gravity: wp.vec3,
     delta: wp.array(dtype=wp.vec3),
+    lambdas: wp.array(dtype=float),
+    residuals: wp.array(dtype=float, ndim=1, default=0.0),
 ):
     tid = wp.tid()
 
@@ -622,8 +624,9 @@ def solve_tetrahedra2(
     # tr = wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3)
     # if (tr < 3.0):
     #     r_s = -r_s
-    C = frob - wp.sqrt(3.0)
+    C = frob
     dCdx = F * wp.transpose(Dm) * (1.0 / frob)
+
 
     # C_Spherical
     # r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
@@ -653,6 +656,11 @@ def solve_tetrahedra2(
     delta1 = grad1 * dlambda0
     delta2 = grad2 * dlambda0
     delta3 = grad3 * dlambda0
+
+    residual0 = (delta0 - dt * w0 * 0.05 * gravity) / w0 - dCdx * (lambdas[2 * tid] + dlambda0)
+    residual1 = (delta1 - dt * w1 * 0.05 * gravity) / w1 - dCdx * (lambdas[2 * tid] + dlambda0)
+    residual2 = (delta2 - dt * w2 * 0.05 * gravity) / w2 - dCdx * (lambdas[2 * tid] + dlambda0)
+    residual3 = (delta3 - dt * w3 * 0.05 * gravity) / w3 - dCdx * (lambdas[2 * tid] + dlambda0)
 
     # hydrostatic part
     J = wp.determinant(F)
@@ -685,12 +693,16 @@ def solve_tetrahedra2(
 
     # apply forces
     wp.atomic_add(lambdas, 2 * tid, dlambda0)
-    wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)
+    wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)    
     wp.atomic_sub(delta, i, delta0 * w0 * relaxation)
     wp.atomic_sub(delta, j, delta1 * w1 * relaxation)
     wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
     wp.atomic_sub(delta, l, delta3 * w3 * relaxation)
 
+    wp.atomic_add(residuals, i, wp.length(residual0))
+    wp.atomic_add(residuals, j, wp.length(residual1))
+    wp.atomic_add(residuals, k, wp.length(residual2))
+    wp.atomic_add(residuals, l, wp.length(residual3))
 
 @wp.kernel
 def apply_particle_deltas(
@@ -724,6 +736,34 @@ def apply_particle_deltas(
     x_out[tid] = x_new
     v_out[tid] = v_new
 
+# @wp.kernel
+# def compute_deviatoric_residuals(
+#     x: wp.array(dtype=wp.vec3),
+#     delta: wp.array(dtype=wp.vec3),
+#     inv_b: wp.array(dtype=float),
+#     indices: wp.array(dtype=int, ndim=2),
+#     residuals: wp.array(dtype=float),
+# ):
+#     tid = wp.tid()
+
+#     i = indices[tid, 0]
+#     j = indices[tid, 1]
+#     k = indices[tid, 2]
+#     l = indices[tid, 3]
+
+#     if i == -1 or j == -1 or k == -1 or l == -1:
+#         return
+
+#     x0 = x[i] + delta[i]
+#     x1 = x[j] + delta[j]
+#     x2 = x[k] + delta[k]
+#     x3 = x[l] + delta[l]
+
+#     # compute the deformation gradient
+#     Ds = wp.matrix_from_cols(x1 - x0, x2 - x0, x3 - x0)
+#     Dm = wp.matrix_from_cols(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+
+
 class FirstOrderXPBDIntegrator(Integrator):
     """An implicit integrator using eXtended Position-Based Dynamics (XPBD) for rigid and soft body simulation.
 
@@ -739,7 +779,7 @@ class FirstOrderXPBDIntegrator(Integrator):
 
     .. code-block:: python
 
-        integrator = wp.XPBDIntegrator()
+        integrator = wp.FirstOrderXPBDIntegrator()
 
         # simulation loop
         for i in range(100):
@@ -835,6 +875,8 @@ class FirstOrderXPBDIntegrator(Integrator):
         particle_q = None
         particle_qd = None
         particle_deltas = None
+
+        residuals = wp.zeros(model.particle_count, dtype=float, device=model.device)
 
         if control is None:
             control = model.control(clone_variables=False)
@@ -966,7 +1008,6 @@ class FirstOrderXPBDIntegrator(Integrator):
                                 inputs=[
                                     particle_q,
                                     particle_qd,
-                                    tet_lambdas,
                                     model.particle_inv_mass,
                                     model.tet_indices,
                                     model.tet_poses,
@@ -974,10 +1015,14 @@ class FirstOrderXPBDIntegrator(Integrator):
                                     model.tet_materials,
                                     dt,
                                     self.soft_body_relaxation,
+                                    model.gravity,
                                 ],
-                                outputs=[particle_deltas],
+                                outputs=[particle_deltas, tet_lambdas, residuals],
                                 device=model.device,
                             )
+
+                            residual = np.max(residuals.numpy())
+                            print(f"Max residual after tet solve: {residual:.6f}")
 
                         particle_q, particle_qd = self.apply_particle_deltas(
                             model, state_in, state_out, particle_deltas, dt
