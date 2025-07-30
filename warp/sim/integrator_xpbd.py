@@ -736,6 +736,7 @@ def solve_tetrahedra2(
     dt: float,
     relaxation: float,
     delta: wp.array(dtype=wp.vec3),
+    lambdas: wp.array(dtype=float),
 ):
     tid = wp.tid()
 
@@ -797,16 +798,15 @@ def solve_tetrahedra2(
     # alpha = 1.0 + k_mu / k_lambda
 
     # C_Neo
-    r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
-    if r_s == 0.0:
+    frob = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
+    if frob == 0.0:
         return
     # tr = wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3)
     # if (tr < 3.0):
     #     r_s = -r_s
-    r_s_inv = 1.0 / r_s
-    C = r_s
-    dCdx = F * wp.transpose(Dm) * r_s_inv
-    alpha = 1.0 + k_mu / k_lambda
+    C = frob
+    dCdx = F * wp.transpose(Dm) * (1.0 / frob)
+
 
     # C_Spherical
     # r_s = wp.sqrt(wp.dot(f1, f1) + wp.dot(f2, f2) + wp.dot(f3, f3))
@@ -829,41 +829,45 @@ def solve_tetrahedra2(
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    multiplier = C / (denom + 1.0 / (k_mu * dt * dt * rest_volume))
+    alpha_tilde = 1.0 / (k_mu * dt * rest_volume)
+    dlambda0 = (C + alpha_tilde * lambdas[2 * tid]) / (denom + alpha_tilde)
 
-    delta0 = grad0 * multiplier
-    delta1 = grad1 * multiplier
-    delta2 = grad2 * multiplier
-    delta3 = grad3 * multiplier
+    delta0 = grad0 * dlambda0
+    delta1 = grad1 * dlambda0
+    delta2 = grad2 * dlambda0
+    delta3 = grad3 * dlambda0
 
     # hydrostatic part
     J = wp.determinant(F)
+    gamma = 1.0 + k_mu / k_lambda
 
-    C_vol = J - alpha
-    # dCdx = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))*wp.transpose(Dm)
+    C_vol = J - gamma
+    dCdx = wp.matrix_from_cols(wp.cross(f2, f3), wp.cross(f3, f1), wp.cross(f1, f2))*wp.transpose(Dm)
 
-    # grad1 = wp.vec3(dCdx[0,0], dCdx[1,0], dCdx[2,0])
-    # grad2 = wp.vec3(dCdx[0,1], dCdx[1,1], dCdx[2,1])
-    # grad3 = wp.vec3(dCdx[0,2], dCdx[1,2], dCdx[2,2])
-    # grad0 = (grad1 + grad2 + grad3)*(0.0 - 1.0)
+    grad1 = wp.vec3(dCdx[0,0], dCdx[1,0], dCdx[2,0])
+    grad2 = wp.vec3(dCdx[0,1], dCdx[1,1], dCdx[2,1])
+    grad3 = wp.vec3(dCdx[0,2], dCdx[1,2], dCdx[2,2])
+    grad0 = (grad1 + grad2 + grad3)*(0.0 - 1.0)
 
-    s = inv_rest_volume / 6.0
-    grad1 = wp.cross(x20, x30) * s
-    grad2 = wp.cross(x30, x10) * s
-    grad3 = wp.cross(x10, x20) * s
-    grad0 = -(grad1 + grad2 + grad3)
+    # s = inv_rest_volume / 6.0
+    # grad1 = wp.cross(x20, x30)  # * s
+    # grad2 = wp.cross(x30, x10) #* s
+    # grad3 = wp.cross(x10, x20) #* s
+    # grad0 = -(grad1 + grad2 + grad3)
 
     denom = (
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
-    multiplier = C_vol / (denom + 1.0 / (k_lambda * dt * dt * rest_volume))
+    alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
+    dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
 
-    delta0 += grad0 * multiplier
-    delta1 += grad1 * multiplier
-    delta2 += grad2 * multiplier
-    delta3 += grad3 * multiplier
+    delta0 += grad0 * dlambda1
+    delta1 += grad1 * dlambda1
+    delta2 += grad2 * dlambda1
+    delta3 += grad3 * dlambda1
 
-    # apply forces
+    wp.atomic_add(lambdas, 2 * tid, dlambda0)
+    wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)    
     wp.atomic_sub(delta, i, delta0 * w0 * relaxation)
     wp.atomic_sub(delta, j, delta1 * w1 * relaxation)
     wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
@@ -2869,6 +2873,9 @@ class XPBDIntegrator(Integrator):
             edge_constraint_lambdas = None
             if model.edge_count:
                 edge_constraint_lambdas = wp.empty_like(model.edge_rest_angle)
+            if model.tet_count:
+                # allocate tet constraint lambdas
+                tet_constraint_lambdas = wp.zeros(model.tet_count * 2, dtype=float, device=model.device)
 
             for i in range(self.iterations):
                 with wp.ScopedTimer(f"iteration_{i}", False):
@@ -3021,7 +3028,7 @@ class XPBDIntegrator(Integrator):
                                     dt,
                                     self.soft_body_relaxation,
                                 ],
-                                outputs=[particle_deltas],
+                                outputs=[particle_deltas, tet_constraint_lambdas],
                                 device=model.device,
                             )
 
