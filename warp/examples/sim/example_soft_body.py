@@ -88,7 +88,7 @@ class Example:
         center = cell_size * cell_dim * 0.5
 
         builder.add_soft_grid(
-            pos=wp.vec3(-center, 0.0, -center),
+            pos=wp.vec3(-center, 1.0, -center),
             rot=wp.quat_identity(),
             vel=wp.vec3(0.0, 0.0, 0.0),
             dim_x=cell_dim,
@@ -98,18 +98,18 @@ class Example:
             cell_y=cell_size,
             cell_z=cell_size,
             density=100.0,
-            fix_left=True,
+            fix_left=False,
             k_mu=1000.0,
-            k_lambda=5000.0,
+            k_lambda=1000.0,
             k_damp=0.0,
         )
 
 
         self.model = builder.finalize()
-        self.model.ground = False
+        self.model.ground = True
         # self.model.gravity[1] = 0.0
 
-        self.integrator = wp.sim.FirstOrderXPBDIntegrator(iterations=10)
+        self.integrator = wp.sim.FirstOrderXPBDIntegrator(iterations=2)
 
         self.rest = self.model.state()
         self.rest_vol = (cell_size * cell_dim) ** 3
