@@ -877,7 +877,6 @@ class FirstOrderXPBDIntegrator(Integrator):
         particle_qd = None
         particle_deltas = None
 
-        residuals = wp.zeros(model.particle_count, dtype=float, device=model.device)
 
         if control is None:
             control = model.control(clone_variables=False)
@@ -1003,6 +1002,8 @@ class FirstOrderXPBDIntegrator(Integrator):
 
                         # tetrahedral FEM
                         if model.tet_count:
+                            residuals = wp.zeros(model.particle_count, dtype=float, device=model.device)
+
                             wp.launch(
                                 kernel=solve_tetrahedra2,
                                 dim=model.tet_count,
@@ -1023,7 +1024,7 @@ class FirstOrderXPBDIntegrator(Integrator):
                             )
 
                             residual = np.max(residuals.numpy())
-                            print(f"Max residual after tet solve: {residual:.6f}")
+                            print(f"Max residual after tet solve step {i}: {residual:.6f}")
 
                         particle_q, particle_qd = self.apply_particle_deltas(
                             model, state_in, state_out, particle_deltas, dt
