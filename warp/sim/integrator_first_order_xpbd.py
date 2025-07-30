@@ -657,10 +657,10 @@ def solve_tetrahedra2(
     delta2 = grad2 * dlambda0
     delta3 = grad3 * dlambda0
 
-    residual0 = (delta0 - dt * w0 * 0.05 * gravity) / w0 - dCdx * (lambdas[2 * tid] + dlambda0)
-    residual1 = (delta1 - dt * w1 * 0.05 * gravity) / w1 - dCdx * (lambdas[2 * tid] + dlambda0)
-    residual2 = (delta2 - dt * w2 * 0.05 * gravity) / w2 - dCdx * (lambdas[2 * tid] + dlambda0)
-    residual3 = (delta3 - dt * w3 * 0.05 * gravity) / w3 - dCdx * (lambdas[2 * tid] + dlambda0)
+    residual0 = (delta0 - dt * w0 * 0.05 * gravity) / w0 - grad0 * (lambdas[2 * tid] + dlambda0)
+    residual1 = (delta1 - dt * w1 * 0.05 * gravity) / w1 - grad1 * (lambdas[2 * tid] + dlambda0)
+    residual2 = (delta2 - dt * w2 * 0.05 * gravity) / w2 - grad2 * (lambdas[2 * tid] + dlambda0)
+    residual3 = (delta3 - dt * w3 * 0.05 * gravity) / w3 - grad3 * (lambdas[2 * tid] + dlambda0)
 
     # hydrostatic part
     J = wp.determinant(F)
