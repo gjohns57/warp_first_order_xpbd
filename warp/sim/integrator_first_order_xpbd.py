@@ -1,4 +1,5 @@
 import warp as wp
+import numpy as np
 
 from .integrator import Integrator
 from .model import (
