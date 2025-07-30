@@ -554,10 +554,8 @@ def solve_tetrahedra2(
     materials: wp.array(dtype=float, ndim=2),
     dt: float,
     relaxation: float,
-    gravity: wp.vec3,
     delta: wp.array(dtype=wp.vec3),
     lambdas: wp.array(dtype=float),
-    residuals: wp.array(dtype=float),
 ):
     tid = wp.tid()
 
@@ -692,7 +690,6 @@ def solve_tetrahedra2(
     delta2 += grad2 * dlambda1
     delta3 += grad3 * dlambda1
 
-    # apply forces
     wp.atomic_add(lambdas, 2 * tid, dlambda0)
     wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)    
     wp.atomic_sub(delta, i, delta0 * w0 * relaxation)
@@ -700,10 +697,7 @@ def solve_tetrahedra2(
     wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
     wp.atomic_sub(delta, l, delta3 * w3 * relaxation)
 
-    wp.atomic_add(residuals, i, wp.length(residual0))
-    wp.atomic_add(residuals, j, wp.length(residual1))
-    wp.atomic_add(residuals, k, wp.length(residual2))
-    wp.atomic_add(residuals, l, wp.length(residual3))
+
 
 @wp.kernel
 def apply_particle_deltas(
@@ -1002,7 +996,6 @@ class FirstOrderXPBDIntegrator(Integrator):
 
                         # tetrahedral FEM
                         if model.tet_count:
-                            residuals = wp.zeros(model.particle_count, dtype=float, device=model.device)
 
                             wp.launch(
                                 kernel=solve_tetrahedra2,
@@ -1017,14 +1010,12 @@ class FirstOrderXPBDIntegrator(Integrator):
                                     model.tet_materials,
                                     dt,
                                     self.soft_body_relaxation,
-                                    model.gravity,
                                 ],
-                                outputs=[particle_deltas, tet_lambdas, residuals],
+                                outputs=[particle_deltas, tet_lambdas],
                                 device=model.device,
                             )
 
-                            residual = np.max(residuals.numpy())
-                            print(f"Max residual after tet solve step {i}: {residual:.6f}")
+                           
 
                         particle_q, particle_qd = self.apply_particle_deltas(
                             model, state_in, state_out, particle_deltas, dt
