@@ -991,7 +991,7 @@ class FirstOrderXPBDIntegrator(Integrator):
 
                         # tetrahedral FEM
                         if model.tet_count:
-
+                            tet_lambdas.zero_()
                             wp.launch(
                                 kernel=solve_tetrahedra2,
                                 dim=model.tet_count,
