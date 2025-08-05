@@ -586,6 +586,12 @@ def solve_tetrahedra2(
     damp1 = particle_damping[j]
     damp2 = particle_damping[k]
     damp3 = particle_damping[l]
+    w0 = inv_mass[i]
+    w1 = inv_mass[j]
+    w2 = inv_mass[k]
+    w3 = inv_mass[l]
+    if tid == 0:
+        wp.printf("w: %f, damp: %f\n", w0, damp0)
 
     x10 = x1 - x0
     x20 = x2 - x0
