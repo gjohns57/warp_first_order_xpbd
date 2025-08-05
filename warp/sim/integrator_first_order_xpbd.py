@@ -690,9 +690,9 @@ def solve_tetrahedra2(
     wp.atomic_add(lambdas, 2 * tid, dlambda0)
     wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)    
     wp.atomic_sub(delta, i, delta0 * damp0 * relaxation)
-    wp.atomic_sub(delta, j, delta1 * w1 * relaxation)
-    wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
-    wp.atomic_sub(delta, l, delta3 * w3 * relaxation)
+    wp.atomic_sub(delta, j, delta1 * damp1 * relaxation)
+    wp.atomic_sub(delta, k, delta2 * damp2 * relaxation)
+    wp.atomic_sub(delta, l, delta3 * damp3 * relaxation)
 
 
 
@@ -874,7 +874,7 @@ class FirstOrderXPBDIntegrator(Integrator):
         particle_damping = None
         if self.particle_damping is None:
             particle_damping = wp.from_numpy(
-                np.full(model.particle_count, 100.0, dtype=np.float32), device=model.device
+                np.full(model.particle_count, 1.0 / 100.0, dtype=np.float32), device=model.device
             )
         else:
             particle_damping = wp.from_numpy(self.particle_damping, device=model.device)
