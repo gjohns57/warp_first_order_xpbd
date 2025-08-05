@@ -830,7 +830,7 @@ def solve_tetrahedra2(
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
     alpha_tilde = 1.0 / (k_mu * dt * rest_volume)
-    dlambda0 = (C + alpha_tilde * lambdas[2 * tid]) / (denom + alpha_tilde)
+    dlambda0 = (C + alpha_tilde * 0.0) / (denom + alpha_tilde)
 
     delta0 = grad0 * dlambda0
     delta1 = grad1 * dlambda0
@@ -859,7 +859,7 @@ def solve_tetrahedra2(
         wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
     )
     alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
-    dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
+    dlambda1 = (C_vol + alpha_tilde * 0.0) / (denom + alpha_tilde)
 
     delta0 += grad0 * dlambda1
     delta1 += grad1 * dlambda1
