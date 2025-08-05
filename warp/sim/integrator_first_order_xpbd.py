@@ -1065,8 +1065,8 @@ class FirstOrderXPBDIntegrator(Integrator):
         
     def integrate_particles(
         self,
-        particle_damping: wp.array(dtype=float),
         model: Model,
+        particle_damping: wp.array(dtype=float),
         state_in: State,
         state_out: State,
         dt: float,
