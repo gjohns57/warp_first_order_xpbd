@@ -22,6 +22,7 @@ def integrate_particles(
     v: wp.array(dtype=wp.vec3),
     f: wp.array(dtype=wp.vec3),
     w: wp.array(dtype=float),
+    particle_damping: wp.array(dtype=float),
     particle_flags: wp.array(dtype=wp.uint32),
     gravity: wp.vec3,
     dt: float,
@@ -39,9 +40,10 @@ def integrate_particles(
 
 
     inv_mass = w[tid]
+    damp = particle_damping[tid]
+    force = f[tid]
 
-    # simple semi-implicit Euler. v1 = v0 + a dt, x1 = x0 + v1 dt
-    x1 = x0 + gravity * 0.05 * dt * inv_mass
+    x1 = x0 + gravity * dt * damp / inv_mass
 
     x_new[tid] = x1
 
@@ -552,6 +554,7 @@ def solve_tetrahedra2(
     pose: wp.array(dtype=wp.mat33),
     activation: wp.array(dtype=float),
     materials: wp.array(dtype=float, ndim=2),
+    particle_damping: wp.array(dtype=float),
     dt: float,
     relaxation: float,
     delta: wp.array(dtype=wp.vec3),
@@ -579,11 +582,10 @@ def solve_tetrahedra2(
     # v1 = v[j]
     # v2 = v[k]
     # v3 = v[l]
-
-    w0 = inv_mass[i]
-    w1 = inv_mass[j]
-    w2 = inv_mass[k]
-    w3 = inv_mass[l]
+    damp0 = particle_damping[i]
+    damp1 = particle_damping[j]
+    damp2 = particle_damping[k]
+    damp3 = particle_damping[l]
 
     x10 = x1 - x0
     x20 = x2 - x0
@@ -646,7 +648,7 @@ def solve_tetrahedra2(
     grad0 = (grad1 + grad2 + grad3) * (0.0 - 1.0)
 
     denom = (
-        wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
+        wp.dot(grad0, grad0) * damp0 + wp.dot(grad1, grad1) * damp1 + wp.dot(grad2, grad2) * damp2 + wp.dot(grad3, grad3) * damp3
     )
     alpha_tilde = 1.0 / (k_mu * dt * rest_volume)
     dlambda0 = (C + alpha_tilde * lambdas[2 * tid]) / (denom + alpha_tilde)
@@ -675,7 +677,7 @@ def solve_tetrahedra2(
     # grad0 = -(grad1 + grad2 + grad3)
 
     denom = (
-        wp.dot(grad0, grad0) * w0 + wp.dot(grad1, grad1) * w1 + wp.dot(grad2, grad2) * w2 + wp.dot(grad3, grad3) * w3
+        wp.dot(grad0, grad0) * damp0 + wp.dot(grad1, grad1) * damp1 + wp.dot(grad2, grad2) * damp2 + wp.dot(grad3, grad3) * damp3
     )
     alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
     dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
@@ -687,7 +689,7 @@ def solve_tetrahedra2(
 
     wp.atomic_add(lambdas, 2 * tid, dlambda0)
     wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)    
-    wp.atomic_sub(delta, i, delta0 * w0 * relaxation)
+    wp.atomic_sub(delta, i, delta0 * damp0 * relaxation)
     wp.atomic_sub(delta, j, delta1 * w1 * relaxation)
     wp.atomic_sub(delta, k, delta2 * w2 * relaxation)
     wp.atomic_sub(delta, l, delta3 * w3 * relaxation)
@@ -779,6 +781,7 @@ class FirstOrderXPBDIntegrator(Integrator):
 
     def __init__(
         self,
+        particle_damping=None,
         iterations=2,
         soft_body_relaxation=0.9,
         soft_contact_relaxation=0.9,
@@ -789,6 +792,8 @@ class FirstOrderXPBDIntegrator(Integrator):
         angular_damping=0.0,
         enable_restitution=False,
     ):
+        
+        self.particle_damping = particle_damping
         self.iterations = iterations
 
         self.soft_body_relaxation = soft_body_relaxation
@@ -866,6 +871,14 @@ class FirstOrderXPBDIntegrator(Integrator):
         particle_qd = None
         particle_deltas = None
 
+        particle_damping = None
+        if self.particle_damping is None:
+            particle_damping = wp.from_numpy(
+                np.full(model.particle_count, 100.0, dtype=np.float32), device=model.device
+            )
+        else:
+            particle_damping = wp.from_numpy(self.particle_damping, device=model.device)
+
 
         if control is None:
             control = model.control(clone_variables=False)
@@ -880,7 +893,7 @@ class FirstOrderXPBDIntegrator(Integrator):
                     self.particle_qd_init = wp.clone(state_in.particle_qd)
                 particle_deltas = wp.empty_like(state_out.particle_qd)
 
-                self.integrate_particles(model, state_in, state_out, dt)
+                self.integrate_particles(model, particle_damping, state_in, state_out, dt)
 
 
             spring_constraint_lambdas = None
@@ -1003,7 +1016,8 @@ class FirstOrderXPBDIntegrator(Integrator):
                                     model.tet_poses,
                                     model.tet_activations,
                                     model.tet_materials,
-                                    dt / self.iterations,
+                                    particle_damping,
+                                    dt,
                                     self.soft_body_relaxation,
                                 ],
                                 outputs=[particle_deltas, tet_lambdas],
@@ -1051,6 +1065,7 @@ class FirstOrderXPBDIntegrator(Integrator):
         
     def integrate_particles(
         self,
+        particle_damping: wp.array(dtype=float),
         model: Model,
         state_in: State,
         state_out: State,
@@ -1074,6 +1089,7 @@ class FirstOrderXPBDIntegrator(Integrator):
                     state_in.particle_qd,
                     state_in.particle_f,
                     model.particle_inv_mass,
+                    particle_damping,
                     model.particle_flags,
                     model.gravity,
                     dt,
