@@ -22,7 +22,7 @@ def integrate_particles(
     v: wp.array(dtype=wp.vec3),
     f: wp.array(dtype=wp.vec3),
     w: wp.array(dtype=float),
-    particle_damping: wp.array(dtype=float),
+    particle_weight: wp.array(dtype=float),
     particle_flags: wp.array(dtype=wp.uint32),
     gravity: wp.vec3,
     dt: float,
@@ -39,16 +39,14 @@ def integrate_particles(
         return
 
 
-    inv_mass = w[tid]
-    damp = particle_damping[tid]
+    inv_damping = w[tid]
+    particle_weight = particle_weight[tid]
 
-    if inv_mass == 0.0:
+    if inv_damping == 0.0:
         x_new[tid] = x0
         v_new[tid] = wp.vec3(0.0)
         return
-    x1 = x0 + gravity * dt * damp / inv_mass
-    if tid == 0:
-        wp.printf("x0: %f, x1: %f, inv_mass: %f, damp: %f\n", x0, x1, inv_mass, damp)
+    x1 = x0 + gravity * dt * particle_weight * inv_damping
 
     x_new[tid] = x1
 
@@ -559,7 +557,6 @@ def solve_tetrahedra2(
     pose: wp.array(dtype=wp.mat33),
     activation: wp.array(dtype=float),
     materials: wp.array(dtype=float, ndim=2),
-    particle_damping: wp.array(dtype=float),
     dt: float,
     relaxation: float,
     delta: wp.array(dtype=wp.vec3),
@@ -587,10 +584,10 @@ def solve_tetrahedra2(
     # v1 = v[j]
     # v2 = v[k]
     # v3 = v[l]
-    damp0 = particle_damping[i]
-    damp1 = particle_damping[j]
-    damp2 = particle_damping[k]
-    damp3 = particle_damping[l]
+    damp0 = inv_mass[i]
+    damp1 = inv_mass[j]
+    damp2 = inv_mass[k]
+    damp3 = inv_mass[l]
 
 
     x10 = x1 - x0
@@ -687,16 +684,11 @@ def solve_tetrahedra2(
     )
     alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
     dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
-    if tid == 0:
-        wp.printf("C: %f, C_vol: %f, dlambda0: %f, dlambda1: %f\n", C, C_vol, dlambda0, dlambda1)
 
     delta0 += grad0 * dlambda1
     delta1 += grad1 * dlambda1
     delta2 += grad2 * dlambda1
     delta3 += grad3 * dlambda1
-
-    if tid == 0:
-        wp.printf("delta0: %f, delta1: %f, delta2: %f, delta3: %f\n", wp.length(delta0), wp.length(delta1), wp.length(delta2), wp.length(delta3))
 
     wp.atomic_add(lambdas, 2 * tid, dlambda0)
     wp.atomic_add(lambdas, 2 * tid + 1, dlambda1)    
@@ -792,7 +784,7 @@ class FirstOrderXPBDIntegrator(Integrator):
 
     def __init__(
         self,
-        particle_damping=None,
+        particle_weight=None,
         iterations=2,
         soft_body_relaxation=0.9,
         soft_contact_relaxation=0.9,
@@ -804,7 +796,7 @@ class FirstOrderXPBDIntegrator(Integrator):
         enable_restitution=False,
     ):
         
-        self.particle_damping = particle_damping
+        self.particle_damping = particle_weight
         self.iterations = iterations
 
         self.soft_body_relaxation = soft_body_relaxation
@@ -882,13 +874,13 @@ class FirstOrderXPBDIntegrator(Integrator):
         particle_qd = None
         particle_deltas = None
 
-        particle_damping = None
+        particle_weight = None
         if self.particle_damping is None:
-            particle_damping = wp.from_numpy(
+            particle_weight = wp.from_numpy(
                 np.full(model.particle_count, 1.0 / 100.0, dtype=np.float32), device=model.device
             )
         else:
-            particle_damping = wp.from_numpy(self.particle_damping, device=model.device)
+            particle_weight = wp.from_numpy(self.particle_damping, device=model.device)
 
 
         if control is None:
@@ -904,7 +896,7 @@ class FirstOrderXPBDIntegrator(Integrator):
                     self.particle_qd_init = wp.clone(state_in.particle_qd)
                 particle_deltas = wp.empty_like(state_out.particle_qd)
 
-                self.integrate_particles(model, particle_damping, state_in, state_out, dt)
+                self.integrate_particles(model, particle_weight, state_in, state_out, dt)
 
 
             spring_constraint_lambdas = None
@@ -1027,7 +1019,6 @@ class FirstOrderXPBDIntegrator(Integrator):
                                     model.tet_poses,
                                     model.tet_activations,
                                     model.tet_materials,
-                                    particle_damping,
                                     dt,
                                     self.soft_body_relaxation,
                                 ],
