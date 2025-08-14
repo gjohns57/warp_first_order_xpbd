@@ -41,9 +41,14 @@ def integrate_particles(
 
     inv_mass = w[tid]
     damp = particle_damping[tid]
-    force = f[tid]
 
+    if inv_mass == 0.0:
+        x_new[tid] = x0
+        v_new[tid] = wp.vec3(0.0)
+        return
     x1 = x0 + gravity * dt * damp / inv_mass
+    if tid == 0:
+        wp.printf("x0: %f, x1: %f, inv_mass: %f, damp: %f\n", x0, x1, inv_mass, damp)
 
     x_new[tid] = x1
 
