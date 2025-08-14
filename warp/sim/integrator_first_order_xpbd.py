@@ -682,6 +682,8 @@ def solve_tetrahedra2(
     )
     alpha_tilde = 1.0 / (k_lambda * dt * rest_volume)
     dlambda1 = (C_vol + alpha_tilde * lambdas[2 * tid + 1]) / (denom + alpha_tilde)
+    if tid == 0:
+        wp.printf("C: %f, C_vol: %f, dlambda0: %f, dlambda1: %f\n", C, C_vol, dlambda0, dlambda1)
 
     delta0 += grad0 * dlambda1
     delta1 += grad1 * dlambda1
