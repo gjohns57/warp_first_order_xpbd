@@ -40,7 +40,7 @@ def integrate_particles(
 
 
     inv_damping = w[tid]
-    particle_weight = particle_weight[tid]
+    weight = particle_weight[tid]
 
     if inv_damping == 0.0:
         x_new[tid] = x0
